@@ -14,7 +14,7 @@ export default class PreloaderScene extends Phaser.Scene{
     }
     preload(){
         // player 1
-        this.load.atlas('player1', 'atlases/player_1.png', 'atlases/player_1.json');
+        this.load.atlas('player1', 'atlases/player_3.png', 'atlases/player_3.json');
         this.load.atlas('player2', 'atlases/player_2.png', 'atlases/player_2.json');
         this.load.json('player1_shapes', 'shapes/player1_shapes.json');
         this.load.json('player2_shapes', 'shapes/player2_shapes.json');
