@@ -76,8 +76,8 @@ export default class Player extends Phaser.Physics.Matter.Sprite{
     damageTextText: string
     // cooldowns
     crouchCooldown: number = 800
-    punchCooldown: number = 400
-    kickCooldown: number = 600
+    punchCooldown: number = 1400
+    kickCooldown: number = 1600
     blockCooldown: number = 800
     // durations
     crouchDuration: number = 200
