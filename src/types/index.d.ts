@@ -6,6 +6,7 @@ export interface keysTypes{
   punch: Phaser.Input.Keyboard.Key
   kick: Phaser.Input.Keyboard.Key
   block: Phaser.Input.Keyboard.Key
+  switchAppearance?: Phaser.Input.Keyboard.Key
 }
 export interface animMove{
   idleA: boolean

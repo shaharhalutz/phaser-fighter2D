@@ -11,15 +11,18 @@ export default class Player extends Phaser.Physics.Matter.Sprite{
         this.immortal = immortal
         // @ts-ignore
         let tempAnims = this.anims.animationManager.anims.entries;
-        const getNmes = (id: number) => {
+        const getNmes = (id: number, isAlt: boolean = false) => {
+            const suffix = isAlt ? `_${id}_alt` : `_${id}`;
             Object.keys(tempAnims).forEach((key) => {
-                if(key.slice(-1) == id.toString()){
-                    this.animationNames[key.slice(0, -2)] = key;
+                if(key.endsWith(suffix)){
+                    const baseName = key.slice(0, -suffix.length);
+                    this.animationNames[baseName] = key;
                 }
             });
         }
         if(id === 1){
-            getNmes(id);
+            this.useAltTexture = false;
+            getNmes(id, false);
             this.shapes = {
                 shapesPlayer: this.scene.cache.json.get('player1_shapes'),
                 shapesPlayerFlip: this.scene.cache.json.get('player1_shapes_flip')
@@ -31,11 +34,15 @@ export default class Player extends Phaser.Physics.Matter.Sprite{
                 crouch: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.S),
                 punch: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.C),
                 kick: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F),
-                block: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.G)
+                block: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.G),
+                switchAppearance: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Z)
             }
             this.lastHDir = "r"
+            this.switchCooldown = 0;
+            this.switchKeyJustPressed = false;
         }else if(id === 2){
-            getNmes(2);
+            this.useAltTexture = false;
+            getNmes(2, false);
             this.shapes = {
                 shapesPlayer: this.scene.cache.json.get('player2_shapes'),
                 shapesPlayerFlip: this.scene.cache.json.get('player2_shapes_flip')
@@ -47,9 +54,12 @@ export default class Player extends Phaser.Physics.Matter.Sprite{
                 crouch: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.DOWN),
                 punch: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.M),
                 kick: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.K),
-                block: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.L)
+                block: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.L),
+                switchAppearance: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.P)
             }   
             this.lastHDir = "l"
+            this.switchCooldown = 0;
+            this.switchKeyJustPressed = false;
         }
         // event emitter
         this.on('animationcomplete', (anim) => {
@@ -128,9 +138,13 @@ export default class Player extends Phaser.Physics.Matter.Sprite{
     shapes: Types.shapes
     currentShape: Phaser.GameObjects.Shape
     collides: boolean
+    useAltTexture: boolean = false
+    switchCooldown: number = 0
+    switchKeyJustPressed: boolean = false
     update(isCollision: boolean){
         if(this.dead === true) return;
         this.recordKeys();
+        this.handleTextureSwitch();
         this.handlePlayerMovement();
         // get collide flag
         this.collides = isCollision;
@@ -142,6 +156,8 @@ export default class Player extends Phaser.Physics.Matter.Sprite{
         this.handleAnimation();
         this.handleAttack();
         this.handlePlayerDeath();
+        // update switch cooldown
+        if(this.switchCooldown > 0) this.switchCooldown--;
     }
     handleAttack(){
         const damage = (this.immortal || this.enemy.animMove.block) ? 0 : 10;
@@ -212,6 +228,39 @@ export default class Player extends Phaser.Physics.Matter.Sprite{
             kick: this.keys.kick.isDown,
             block: this.keys.block.isDown
         };
+    }
+    handleTextureSwitch(){
+        // Both players can switch textures
+        if(this.keys.switchAppearance){
+            // Check if key was just pressed (not held down)
+            if(Phaser.Input.Keyboard.JustDown(this.keys.switchAppearance) && this.switchCooldown <= 0){
+                this.useAltTexture = !this.useAltTexture;
+                this.switchCooldown = 10; // cooldown to prevent rapid switching
+            
+                // Switch texture atlas
+                const newTexture = this.useAltTexture ? `player${this.id}_alt` : `player${this.id}`;
+                this.setTexture(newTexture);
+            
+                // Update animation names based on which texture we're using
+                // @ts-ignore
+                let tempAnims = this.anims.animationManager.anims.entries;
+                const getNmes = (id: number, isAlt: boolean) => {
+                    const suffix = isAlt ? `_${id}_alt` : `_${id}`;
+                    Object.keys(tempAnims).forEach((key) => {
+                        if(key.endsWith(suffix)){
+                            const baseName = key.slice(0, -suffix.length);
+                            this.animationNames[baseName] = key;
+                        }
+                    });
+                };
+                getNmes(this.id, this.useAltTexture);
+            
+                // Restart current animation if one is playing
+                if(this.anims && this.anims.currentAnim){
+                    this.handleAnimation();
+                }
+            }
+        }
     }
     setShape(shape: string){
         // take params beforehead
