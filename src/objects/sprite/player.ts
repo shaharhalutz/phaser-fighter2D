@@ -20,6 +20,10 @@ export default class Player extends Phaser.Physics.Matter.Sprite{
                 }
             });
         }
+        // Initialize base stats (will be set after cooldowns are defined)
+        this.baseMovementSpeed = 5;
+        this.baseDamage = 10;
+        
         if(id === 1){
             this.useAltTexture = false;
             getNmes(id, false);
@@ -61,6 +65,12 @@ export default class Player extends Phaser.Physics.Matter.Sprite{
             this.switchCooldown = 0;
             this.switchKeyJustPressed = false;
         }
+        
+        // Store base cooldown values after they're initialized
+        this.basePunchCooldown = this.punchCooldown;
+        this.baseKickCooldown = this.kickCooldown;
+        this.baseCrouchCooldown = this.crouchCooldown;
+        this.baseBlockCooldown = this.blockCooldown;
         // event emitter
         this.on('animationcomplete', (anim) => {
             if(anim.key === this.animationNames.knockback){
@@ -75,6 +85,18 @@ export default class Player extends Phaser.Physics.Matter.Sprite{
     dead: boolean = false
     enemy: Player
     MovementSpeed: number = 5
+    // Super mode stats (base values stored)
+    baseMovementSpeed: number = 5
+    baseDamage: number = 10
+    basePunchCooldown: number = 400
+    baseKickCooldown: number = 600
+    baseCrouchCooldown: number = 800
+    baseBlockCooldown: number = 800
+    // Super mode multipliers
+    superModeDamageMultiplier: number = 1.5  // Deal 1.5x damage in super mode
+    superModeSpeedMultiplier: number = 1.3   // Move 1.3x faster in super mode
+    superModeDamageTakenMultiplier: number = 0.7  // Take 0.7x damage in super mode
+    superModeCooldownMultiplier: number = 0.7  // 0.7x cooldowns (faster attacks) in super mode
     keys: Types.keysTypes
     recordedKeys: Types.keyBool
     jumpCooldown: number = 0
@@ -160,8 +182,24 @@ export default class Player extends Phaser.Physics.Matter.Sprite{
         if(this.switchCooldown > 0) this.switchCooldown--;
     }
     handleAttack(){
-        const damage = (this.immortal || this.enemy.animMove.block) ? 0 : 10;
+        // Calculate base damage
+        let baseDamage = this.baseDamage;
+        
+        // Apply super mode damage multiplier if in super mode
+        if(this.useAltTexture){
+            baseDamage = Math.floor(baseDamage * this.superModeDamageMultiplier);
+        }
+        
+        // Apply enemy's super mode damage reduction if enemy is in super mode
+        let finalDamage = baseDamage;
+        if(this.enemy.useAltTexture){
+            finalDamage = Math.floor(finalDamage * this.enemy.superModeDamageTakenMultiplier);
+        }
+        
+        // Block reduces damage to 0
+        const damage = (this.immortal || this.enemy.animMove.block) ? 0 : finalDamage;
         this.damageTextText = this.enemy.animMove.block ? "BLOCK" : damage.toString();
+        
         if(this.collides === true){
             if(this.animMove.punch === true && this.singlePunch === true){
                 this.enemy.hp -= damage;
@@ -234,8 +272,26 @@ export default class Player extends Phaser.Physics.Matter.Sprite{
         if(this.keys.switchAppearance){
             // Check if key was just pressed (not held down)
             if(Phaser.Input.Keyboard.JustDown(this.keys.switchAppearance) && this.switchCooldown <= 0){
+                const wasSuperMode = this.useAltTexture;
                 this.useAltTexture = !this.useAltTexture;
                 this.switchCooldown = 10; // cooldown to prevent rapid switching
+            
+                // Apply or remove super mode stats
+                if(this.useAltTexture && !wasSuperMode){
+                    // Entering super mode - apply multipliers
+                    this.MovementSpeed = this.baseMovementSpeed * this.superModeSpeedMultiplier;
+                    this.punchCooldown = Math.floor(this.basePunchCooldown * this.superModeCooldownMultiplier);
+                    this.kickCooldown = Math.floor(this.baseKickCooldown * this.superModeCooldownMultiplier);
+                    this.crouchCooldown = Math.floor(this.baseCrouchCooldown * this.superModeCooldownMultiplier);
+                    this.blockCooldown = Math.floor(this.baseBlockCooldown * this.superModeCooldownMultiplier);
+                } else if(!this.useAltTexture && wasSuperMode){
+                    // Exiting super mode - restore base stats
+                    this.MovementSpeed = this.baseMovementSpeed;
+                    this.punchCooldown = this.basePunchCooldown;
+                    this.kickCooldown = this.baseKickCooldown;
+                    this.crouchCooldown = this.baseCrouchCooldown;
+                    this.blockCooldown = this.baseBlockCooldown;
+                }
             
                 // Switch texture atlas
                 const newTexture = this.useAltTexture ? `player${this.id}_alt` : `player${this.id}`;
