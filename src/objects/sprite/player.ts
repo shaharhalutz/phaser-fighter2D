@@ -86,8 +86,8 @@ export default class Player extends Phaser.Physics.Matter.Sprite{
     damageTextText: string
     // cooldowns
     crouchCooldown: number = 800
-    punchCooldown: number = 1400
-    kickCooldown: number = 1600
+    punchCooldown: number = 400
+    kickCooldown: number = 600
     blockCooldown: number = 800
     // durations
     crouchDuration: number = 200
@@ -286,18 +286,47 @@ export default class Player extends Phaser.Physics.Matter.Sprite{
                 this.animMove.idleG = true;
             }
         }
-        // idle
-        if(this.animMove.idleA === true){
-            this.setObjFalse(this.animMove);
-            this.setShape('idle_air');
-            this.play(this.animationNames.idlea, true);
+        // knockback (highest priority)
+        if(this.animMove.knockback === true){
+            this.setShape('knockback');
+            this.play(this.animationNames.knockback, true);
+            return; // Don't process other animations during knockback
         }
-        if(this.animMove.idleG === true){
-            this.setObjFalse(this.animMove);
-            this.setShape('idle_ground');
-            this.play(this.animationNames.idleg, true);
+        // block
+        if(this.animMove.block === true){
+            this.setShape('block');
+            this.play(this.animationNames.block, true);
+            return; // Don't process other animations during block
         }
-        // movement
+        // crouch
+        if(this.animMove.crouch === true){
+            this.setShape('crouch');
+            this.play(this.animationNames.crouch, true);
+            return; // Don't process other animations during crouch
+        }
+        // punch (prioritize over movement)
+        if(this.animMove.punch === true){
+            if(this.isAir === true){
+                this.setShape('punch_air');
+                this.play(this.animationNames.puncha, true);
+            }else if(this.isAir === false){
+                this.setShape('punch_ground');
+                this.play(this.animationNames.punchg, true);
+            }
+            return; // Don't process movement during punch
+        }
+        // kick (prioritize over movement)
+        if(this.animMove.kick === true){
+            if(this.isAir === true){
+                this.setShape('kick_air');
+                this.play(this.animationNames.kicka, true);
+            }else if(this.isAir === false){
+                this.setShape('kick_ground');
+                this.play(this.animationNames.kickg, true);
+            }
+            return; // Don't process movement during kick
+        }
+        // movement (only if no attack is active)
         if(this.animMove.right === true){
             // right front
             if(this.lastHDir === 'r'){
@@ -323,40 +352,16 @@ export default class Player extends Phaser.Physics.Matter.Sprite{
             // reset
             this.setObjFalse(this.animMove);
         }
-        // punch
-        if(this.animMove.punch === true){
-            if(this.isAir === true){
-                this.setShape('punch_air');
-                this.play(this.animationNames.puncha, true);
-            }else if(this.isAir === false){
-                this.setShape('punch_ground');
-                this.play(this.animationNames.punchg, true);
-            }
+        // idle
+        if(this.animMove.idleA === true){
+            this.setObjFalse(this.animMove);
+            this.setShape('idle_air');
+            this.play(this.animationNames.idlea, true);
         }
-        // crouch
-        if(this.animMove.crouch === true){
-            this.setShape('crouch');
-            this.play(this.animationNames.crouch, true);
-        }
-        // kick
-        if(this.animMove.kick === true){
-            if(this.isAir === true){
-                this.setShape('kick_air');
-                this.play(this.animationNames.kicka, true);
-            }else if(this.isAir === false){
-                this.setShape('kick_ground');
-                this.play(this.animationNames.kickg, true);
-            }
-        }
-        // block
-        if(this.animMove.block === true){
-            this.setShape('block');
-            this.play(this.animationNames.block, true);
-        }
-        // knockback
-        if(this.animMove.knockback === true){
-            this.setShape('knockback');
-            this.play(this.animationNames.knockback, true);
+        if(this.animMove.idleG === true){
+            this.setObjFalse(this.animMove);
+            this.setShape('idle_ground');
+            this.play(this.animationNames.idleg, true);
         }
     }
     // set properties of object to false
