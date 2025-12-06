@@ -45,6 +45,55 @@ class HealthBar {
     }
 }
 
+class EnergyBar {
+    bar: Phaser.GameObjects.Graphics;
+    x: number;
+    y: number;
+    value: number;
+    maxValue: number;
+    p: number;
+    constructor(scene, x, y, maxValue){
+        this.bar = new Phaser.GameObjects.Graphics(scene);
+        this.x = x;
+        this.y = y;
+        this.maxValue = maxValue;
+        this.value = maxValue;
+        this.p = 76 / this.maxValue;
+        this.draw();
+        scene.add.existing(this.bar);
+    }
+    update(value){
+        this.value = value;
+        if (this.value < 0){
+            this.value = 0;
+        }
+        if (this.value > this.maxValue){
+            this.value = this.maxValue;
+        }
+        this.draw();
+    }
+    draw(){
+        this.bar.clear();
+        //  BG
+        this.bar.fillStyle(0x000000);
+        this.bar.fillRect(this.x, this.y, 80, 16);
+        //  Energy background
+        this.bar.fillStyle(0xffffff);
+        this.bar.fillRect(this.x + 2, this.y + 2, 76, 12);
+        //  Energy color - yellow/orange for energy
+        if(this.value < 30){
+            this.bar.fillStyle(0xff6600); // Orange when low
+        }else{
+            this.bar.fillStyle(0xffff00); // Yellow when sufficient
+        }
+        var d = Math.floor(this.p * this.value);
+        this.bar.fillRect(this.x + 2, this.y + 2, d, 12);
+    }
+    destroy(){
+        this.bar.clear();
+    }
+}
+
 export default class UIClass extends Phaser.Scene{
     constructor(){
         super(SceneKeys.UIScene);
@@ -57,6 +106,8 @@ export default class UIClass extends Phaser.Scene{
     game;
     hp1: HealthBar;
     hp2: HealthBar;
+    ep1: EnergyBar;
+    ep2: EnergyBar;
     defhp1: number;
     defhp2: number;
     create(){
@@ -70,6 +121,9 @@ export default class UIClass extends Phaser.Scene{
         })
         this.hp1 = new HealthBar(this, 381/4*1-40, 20, this.game.settings.hp1);
         this.hp2 = new HealthBar(this, 381/4*3-40, 20, this.game.settings.hp2);
+        // Energy bars (positioned below health bars)
+        this.ep1 = new EnergyBar(this, 381/4*1-40, 40, 100);
+        this.ep2 = new EnergyBar(this, 381/4*3-40, 40, 100);
     }
     update(){
         this.handleOver();
@@ -88,6 +142,8 @@ export default class UIClass extends Phaser.Scene{
             this.player2Name.destroy();
             this.hp1.destroy();
             this.hp2.destroy();
+            this.ep1.destroy();
+            this.ep2.destroy();
             this.time.addEvent({delay:4000, callback: this.handleChangeScene, callbackScope: this});
         }
     }

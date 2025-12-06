@@ -71,6 +71,9 @@ export default class Player extends Phaser.Physics.Matter.Sprite{
         this.baseKickCooldown = this.kickCooldown;
         this.baseCrouchCooldown = this.crouchCooldown;
         this.baseBlockCooldown = this.blockCooldown;
+        // Initialize energy system
+        this.energy = this.maxEnergy;
+        this.lastEnergyUpdate = 0;
         // event emitter
         this.on('animationcomplete', (anim) => {
             if(anim.key === this.animationNames.knockback){
@@ -85,6 +88,13 @@ export default class Player extends Phaser.Physics.Matter.Sprite{
     dead: boolean = false
     enemy: Player
     MovementSpeed: number = 5
+    // Energy Points (EPs) system
+    energy: number = 100
+    maxEnergy: number = 100
+    minEnergyToEnterSuperMode: number = 30
+    energyDrainRate: number = 10  // EPs per second drained in super mode
+    energyRechargeRate: number = 5  // EPs per second recharged in normal mode
+    lastEnergyUpdate: number = 0
     // Super mode stats (base values stored)
     baseMovementSpeed: number = 5
     baseDamage: number = 10
@@ -172,6 +182,7 @@ export default class Player extends Phaser.Physics.Matter.Sprite{
         if(this.dead === true) return;
         this.recordKeys();
         this.handleTextureSwitch();
+        this.handleEnergyManagement();
         this.handlePlayerMovement();
         // get collide flag
         this.collides = isCollision;
@@ -185,6 +196,44 @@ export default class Player extends Phaser.Physics.Matter.Sprite{
         this.handlePlayerDeath();
         // update switch cooldown
         if(this.switchCooldown > 0) this.switchCooldown--;
+    }
+    handleEnergyManagement(){
+        const currentTime = this.scene.time.now;
+        const deltaTime = this.lastEnergyUpdate === 0 ? 0 : (currentTime - this.lastEnergyUpdate) / 1000; // Convert to seconds
+        this.lastEnergyUpdate = currentTime;
+        
+        if(this.useAltTexture){
+            // In super mode - drain energy
+            if(deltaTime > 0){
+                this.energy -= this.energyDrainRate * deltaTime;
+                if(this.energy <= 0){
+                    this.energy = 0;
+                    // Auto-exit super mode when energy reaches 0
+                    this.exitSuperMode();
+                }
+            }
+        } else {
+            // In normal mode - recharge energy
+            if(deltaTime > 0){
+                this.energy += this.energyRechargeRate * deltaTime;
+                if(this.energy > this.maxEnergy){
+                    this.energy = this.maxEnergy;
+                }
+            }
+        }
+        
+        // Update energy bar in UI if it exists
+        // @ts-ignore
+        if(this.scene.Ui && this.scene.Ui.ep1 && this.scene.Ui.ep2){
+            // @ts-ignore
+            if(this.id === 1){
+                // @ts-ignore
+                this.scene.Ui.ep1.update(this.energy);
+            } else if(this.id === 2){
+                // @ts-ignore
+                this.scene.Ui.ep2.update(this.energy);
+            }
+        }
     }
     handleAttack(){
         // Calculate base damage
@@ -328,6 +377,12 @@ export default class Player extends Phaser.Physics.Matter.Sprite{
         };
         getNmes(this.id, false);
         
+        // Clear any existing cooldown timer before setting a new one
+        if(this.superModeCooldownTimer){
+            this.superModeCooldownTimer.remove();
+            this.superModeCooldownTimer = null;
+        }
+        
         // Start 30-second cooldown before super mode can be activated again
         this.isSuperModeOnCooldown = true;
         this.superModeCooldownTimer = this.scene.time.addEvent({
@@ -335,6 +390,13 @@ export default class Player extends Phaser.Physics.Matter.Sprite{
             callback: this.clearSuperModeCooldown,
             callbackScope: this
         });
+        
+        // Notify scene that super mode exited (for purple sky effect)
+        // @ts-ignore
+        if(this.scene.onSuperModeExit){
+            // @ts-ignore
+            this.scene.onSuperModeExit();
+        }
         
         // Restart current animation if one is playing
         if(this.anims && this.anims.currentAnim){
@@ -349,66 +411,77 @@ export default class Player extends Phaser.Physics.Matter.Sprite{
             if(Phaser.Input.Keyboard.JustDown(this.keys.switchAppearance) && this.switchCooldown <= 0){
                 const wasSuperMode = this.useAltTexture;
                 
-                // Check if trying to enter super mode while on cooldown
-                if(!wasSuperMode && this.isSuperModeOnCooldown){
-                    // Super mode is on cooldown, don't allow activation
-                    return;
+                // Check if trying to enter super mode
+                if(!wasSuperMode){
+                    // Check if on cooldown
+                    if(this.isSuperModeOnCooldown){
+                        // Super mode is on cooldown, don't allow activation
+                        return;
+                    }
+                    // Check if has minimum energy required
+                    if(this.energy < this.minEnergyToEnterSuperMode){
+                        // Not enough energy to enter super mode
+                        return;
+                    }
                 }
-
-                // bla bla bla esxample
                 
-                this.useAltTexture = !this.useAltTexture;
+                // Handle manual exit from super mode (before toggling useAltTexture)
+                if(wasSuperMode){
+                    // Exiting super mode manually - call exitSuperMode to handle cooldown
+                    // exitSuperMode will handle texture switching, stats, and animations
+                    this.switchCooldown = 10; // cooldown to prevent rapid switching
+                    this.exitSuperMode();
+                    return; // exitSuperMode handles everything, so return early
+                }
+                
+                // Entering super mode
+                this.useAltTexture = true;
                 this.switchCooldown = 10; // cooldown to prevent rapid switching
             
-                // Clear existing timer if switching manually
+                // Clear any existing timer before starting a new one
                 if(this.superModeTimer){
                     this.superModeTimer.remove();
                     this.superModeTimer = null;
                 }
             
-                // Apply or remove super mode stats
-                if(this.useAltTexture && !wasSuperMode){
-                    // Entering super mode - apply multipliers
-                    this.MovementSpeed = this.baseMovementSpeed * this.superModeSpeedMultiplier;
-                    this.punchCooldown = Math.floor(this.basePunchCooldown * this.superModeCooldownMultiplier);
-                    this.kickCooldown = Math.floor(this.baseKickCooldown * this.superModeCooldownMultiplier);
-                    this.crouchCooldown = Math.floor(this.baseCrouchCooldown * this.superModeCooldownMultiplier);
-                    this.blockCooldown = Math.floor(this.baseBlockCooldown * this.superModeCooldownMultiplier);
-                    
-                    // Start 10-second timer to auto-exit super mode
-                    this.superModeTimer = this.scene.time.addEvent({
-                        delay: this.superModeDuration,
-                        callback: this.exitSuperMode,
-                        callbackScope: this
-                    });
-                    
-                    // Switch texture atlas to super mode
-                    const newTexture = `player${this.id}_alt`;
-                    this.setTexture(newTexture);
-                    
-                    // Update animation names for super mode
+                // Apply super mode multipliers
+                this.MovementSpeed = this.baseMovementSpeed * this.superModeSpeedMultiplier;
+                this.punchCooldown = Math.floor(this.basePunchCooldown * this.superModeCooldownMultiplier);
+                this.kickCooldown = Math.floor(this.baseKickCooldown * this.superModeCooldownMultiplier);
+                this.crouchCooldown = Math.floor(this.baseCrouchCooldown * this.superModeCooldownMultiplier);
+                this.blockCooldown = Math.floor(this.baseBlockCooldown * this.superModeCooldownMultiplier);
+                
+                // Note: Super mode duration is now controlled by energy points, not a timer
+                // Energy will drain while in super mode, and when it reaches 0, super mode ends
+                
+                // Notify scene that super mode entered (for purple sky effect)
+                // @ts-ignore
+                if(this.scene.onSuperModeEnter){
                     // @ts-ignore
-                    let tempAnims = this.anims.animationManager.anims.entries;
-                    const getNmes = (id: number, isAlt: boolean) => {
-                        const suffix = isAlt ? `_${id}_alt` : `_${id}`;
-                        Object.keys(tempAnims).forEach((key) => {
-                            if(key.endsWith(suffix)){
-                                const baseName = key.slice(0, -suffix.length);
-                                this.animationNames[baseName] = key;
-                            }
-                        });
-                    };
-                    getNmes(this.id, true);
-                    
-                    // Restart current animation if one is playing
-                    if(this.anims && this.anims.currentAnim){
-                        this.handleAnimation();
-                    }
-                } else if(!this.useAltTexture && wasSuperMode){
-                    // Exiting super mode manually - call exitSuperMode to handle cooldown
-                    this.exitSuperMode();
-                    // exitSuperMode handles texture switching and animations, so return early
-                    return;
+                    this.scene.onSuperModeEnter();
+                }
+                
+                // Switch texture atlas to super mode
+                const newTexture = `player${this.id}_alt`;
+                this.setTexture(newTexture);
+                
+                // Update animation names for super mode
+                // @ts-ignore
+                let tempAnims = this.anims.animationManager.anims.entries;
+                const getNmes = (id: number, isAlt: boolean) => {
+                    const suffix = isAlt ? `_${id}_alt` : `_${id}`;
+                    Object.keys(tempAnims).forEach((key) => {
+                        if(key.endsWith(suffix)){
+                            const baseName = key.slice(0, -suffix.length);
+                            this.animationNames[baseName] = key;
+                        }
+                    });
+                };
+                getNmes(this.id, true);
+                
+                // Restart current animation if one is playing
+                if(this.anims && this.anims.currentAnim){
+                    this.handleAnimation();
                 }
             }
         }
