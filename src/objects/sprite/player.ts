@@ -354,6 +354,8 @@ export default class Player extends Phaser.Physics.Matter.Sprite{
                     // Super mode is on cooldown, don't allow activation
                     return;
                 }
+
+                // bla bla bla esxample
                 
                 this.useAltTexture = !this.useAltTexture;
                 this.switchCooldown = 10; // cooldown to prevent rapid switching
