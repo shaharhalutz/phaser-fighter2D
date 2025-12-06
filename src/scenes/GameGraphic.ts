@@ -31,6 +31,8 @@ export default class GameGraphic extends Phaser.Scene{
     ZOOM_LERP = 0.05;
     gameWidth: number = 922;
     gameHeight: number = 213;
+    purpleOverlay: Phaser.GameObjects.Rectangle;
+    superModeActiveCount: number = 0; // Track how many players are in super mode
     create(){
         this.matter.world.setGravity(0, 1);
         this.player1 = new Player(
@@ -71,6 +73,15 @@ export default class GameGraphic extends Phaser.Scene{
         });
         // background
         this.add.image(0, 0, 'background').setOrigin(0).setDepth(-1);
+        // purple overlay for super mode (initially hidden)
+        this.purpleOverlay = this.add.rectangle(
+            this.gameWidth / 2, 
+            this.gameHeight / 2, 
+            this.gameWidth, 
+            this.gameHeight, 
+            0x8B00FF, // Purple color
+            0.3 // 30% opacity
+        ).setDepth(-0.5).setVisible(false);
         // camera
         this.camera = this.cameras.main;
         this.camera.setBounds(0, 0, this.gameWidth, this.gameHeight);
@@ -117,6 +128,19 @@ export default class GameGraphic extends Phaser.Scene{
                 this.player1.lastHDir = "r"
                 this.player2.lastHDir = "l"
             }
+        }
+    }
+    onSuperModeEnter(){
+        this.superModeActiveCount++;
+        if(this.superModeActiveCount > 0){
+            this.purpleOverlay.setVisible(true);
+        }
+    }
+    onSuperModeExit(){
+        this.superModeActiveCount--;
+        if(this.superModeActiveCount <= 0){
+            this.superModeActiveCount = 0; // Ensure it doesn't go negative
+            this.purpleOverlay.setVisible(false);
         }
     }
 }
